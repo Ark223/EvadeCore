@@ -86,14 +86,13 @@ Parameters:
 
 Methods:
 
-* **IsCollidingWall(Vector p1, Vector p2)** [boolean] - indicates if a path collides with wall
 * **IsDangerous(Vector)** [boolean] - indicates if input point is inside of any skillshot area
 * **IsDangerousPath(Path)** [boolean] - indicates if input path will collide with any skillshot
 * **IsSafe(Vector)** [boolean] - indicates if input point is outside of all skillshot areas
-* **FindSafeSpots(Path path, number maxRange, boolean wallCheck)** [table(Vector)]
-    - returns safe destinations for game object within a limited range (default value is 1000)
-    - paths which collide with walls are rejected from results if 'wallCheck' arg is set to true
-* **GetEvadeSpot(Path path, number maxRange, boolean wallCheck)** [Vector]
+* **FindSafeSpots(Path path, number maxRange, boolean fixedRange)** [table(Vector)]
+    - returns safe destinations for game object within a limited range (default value is 500)
+    - 'fixedRange' parameter is used in case of the preference of paths generated at fixed range
+* **GetEvadeSpot(Path path, number maxRange, boolean fixedRange)** [Vector]
     - based on generated spots it prioritises the ones which are closer to mouse position
     - in case the paths were too close to reach a collision, it takes the shortest path
 * **TimeToHit(Vector)** [number] - returns a time for skillshots to enter a collision with object

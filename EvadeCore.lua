@@ -2,8 +2,8 @@
 --[[
 
     Author: Ark223
-    Version: 1.0.9c
-    Date: 25 March 2022
+    Version: 1.1.0
+    Date: 12 July 2022
     Copyright (c) 2022 Arkadiusz Kwiatkowski
 
     [License]
@@ -101,7 +101,6 @@ local directives = {
     timer = function() return game.game_time end,
     hitbox = function() return myHero.bounding_radius end,
     position = function() return myHero.path.server_pos end,
-    isWall = function(p) return nav_mesh:is_wall(p.x, 0, p.y) end,
     drawLine = function(p1, p2, height, a, r, g, b)
         local pa = game:world_to_screen_2(p1.x, height or 0, p1.y)
         local pb = game:world_to_screen_2(p2.x, height or 0, p2.y)
@@ -324,10 +323,10 @@ function table.Select(source, func)
 end
 
 function table.SelectMany(source, selector, collector)
-	local result = Linq()
+    local result = Linq()
     local selector = ParseFunc(selector)
     local collector = ParseFunc(collector)
-	for index, value in ipairs(source) do
+    for index, value in ipairs(source) do
         local position = #result
         local values = selector(value, index)
         for iteration, element in ipairs(values) do
@@ -335,7 +334,7 @@ function table.SelectMany(source, selector, collector)
             result[index] = collector(value, element)
         end
     end
-	return result
+    return result
 end
 
 function table.Union(source, collection)
@@ -1289,19 +1288,6 @@ function Core:__init(skillshots, step)
     }
 end
 
-function Core:IsCollidingWall(p1, p2)
-    local hitbox = directives.hitbox()
-    local p2 = p1:Append(p2, hitbox)
-    local dir = (p2 - p1):Normalize()
-    local dist, step = p1:Distance(p2), 0
-    for i = 1, math.ceil(dist / hitbox) do
-        local pos = p1 + dir * step
-        if directives.isWall(pos) then return true end
-        step = step + math.min(dist - step, hitbox)
-    end
-    return false
-end
-
 function Core:IsDangerous(pos)
     return self.skillshots:Any(function(s)
         return s:IsDangerous(pos) end)
@@ -1316,39 +1302,38 @@ function Core:IsSafe(pos)
     return not self:IsDangerous(pos)
 end
 
-function Core:FindSafeSpots(path, maxRange, wallCheck)
+function Core:FindSafeSpots(path, maxRange, fixedRange)
     local results = {}
     path.startPos = not path.startPos:IsZero() and
         path.startPos or Vector:New(directives.position())
     for i = 0, 360 - self.angleStep, self.angleStep do
         -- rotate around hero and create a one-way path
         local rotated = Vector:New(0, 1):Rotate(math.rad(i))
-        path.endPos = path.startPos + rotated * (maxRange or 1000)
-        -- get and analyse the closest safe intersection point
-        local intersection = self.skillshots:Select(function(s)
-            return s:PathIntersection(path.startPos, path.endPos) end)
+        path.endPos = path.startPos + rotated * (maxRange or 500)
+        -- get and analyse intersection points or fixed path
+        local destination = fixedRange and path.endPos
+            or self.skillshots:Select(function(s) return
+                s:PathIntersection(path.startPos, path.endPos) end)
             :Aggregate(function(r, i) return r:Concat(i) end, Linq())
             :OrderBy(function(a, b) return a:DistanceSquared(
                 path.startPos) < b:DistanceSquared(path.startPos) end)
             :First(function(i) local after = path.startPos:Append(i, 1)
                 return not self:IsDangerous(after) end) or nil
-        if intersection == nil then goto continue end
-        path.endPos = path.startPos:Append(intersection, 1)
-        if self:IsPathDangerous(path) or (wallCheck
-            and self:IsCollidingWall(path.startPos,
-            path.endPos)) then goto continue end
+        if destination == nil then goto continue end
+        path.endPos = path.startPos:Append(destination, 1)
+        if self:IsPathDangerous(path) then goto continue end
         table.insert(results, path.endPos:Clone())
         ::continue::
     end
     return results
 end
 
-function Core:GetEvadeSpot(path, maxRange, wallCheck)
+function Core:GetEvadeSpot(path, maxRange, fixedRange)
     local delta = path.delta
     for index = 1, 0, -1 do
         path.delta = delta + 0.1 * index
         local spots = self:FindSafeSpots(
-            path, maxRange or 1000, wallCheck)
+            path, maxRange or 500, fixedRange)
         table.sort(spots, self.SortMode[index])
         if #spots > 0 then return spots[1] end
     end
